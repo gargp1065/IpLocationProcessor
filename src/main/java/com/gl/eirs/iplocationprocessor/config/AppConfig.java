@@ -22,4 +22,6 @@ public class AppConfig {
     @Value("${alert.url}")
     String alertUrl;
 
+    @Value("${error.file.path}")
+    String errorFilePath;
 }

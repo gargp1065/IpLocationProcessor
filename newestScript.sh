@@ -108,7 +108,7 @@
         exit 1;
     fi
     moduleName="IP Location"
-    featureName="IP Location Manager_$ipType"
+    featureName="IP_Location_Manager_$ipType"
     previousStatus=$(mysql -h$dbIp -P$dbPort $auddbName -u$dbUsername  -p${dbPassword} -se "select status_code from modules_audit_trail where feature_name='$featureName' and module_name='$moduleName' and created_on like '%$(date +%F)%' order by id desc limit 1");
     log_message "The previous status of execution for ip-type '$ipType' is '$previousStatus'";
 
@@ -146,46 +146,45 @@ EOFMYSQL
         log_message "Terminating the process."
         exit 3;
     fi
-
-    ipLocationDumpFileUrl="${ipLocationDumpFileUrl/<token>\\/$ipLocationUrlKey}"
+    log_message $ipLocationDumpFileUrl
     ipLocationDumpFileUrl="${ipLocationDumpFileUrl/<code>/$ipLocationCode}"
-
+    ipLocationDumpFileUrl="${ipLocationDumpFileUrl/<token>\\/$ipLocationUrlKey}"
     log_message $ipLocationDumpFileUrl
     databaseZip="$inputFilePath/database.zip"
     log_message "The zip file is downloaded as $databaseZip"
     # now call the api to get the file.....
-#    wget -O $databaseZip -q $ipLocationDumpFileUrl 2>&1
+    wget -O $databaseZip -q $ipLocationDumpFileUrl 2>&1
 #
-#    checkFileUploadComplete $databaseZip
+    checkFileUploadComplete $databaseZip
 #
-#    if [ ! -f $databaseZip ]; then
-#      log_message "The file downloading failed for $ipType"
-#      updateAuditEntry "The file downloading failed for $ipType" $executionStartTime $moduleName $featureName
-#      generateAlertUsingUrl "alert2144" $ipType '' $alertUrl
-#      exit 0
-#    fi
+    if [ ! -f $databaseZip ]; then
+      log_message "The file downloading failed for $ipType"
+      updateAuditEntry "The file downloading failed for $ipType" $executionStartTime $moduleName $featureName
+      generateAlertUsingUrl "alert2144" $ipType '' $alertUrl
+      exit 0
+    fi
 #
-#    if [ $(wc -c < $databaseZip) -lt $fileSize ]; then
-#      log_message "The file downloaded was incomplete."
-#      updateAuditEntry "The file downloading was incomplete. for $ipType" $executionStartTime $moduleName $featureName
-#      generateAlertUsingUrl "alert2145" $ipType '' $alertUrl
-#      exit 0
-#    fi
-    cd $inputFilePath
-    unzip -q -o $databaseZip
-    if [ -z $(find . -name '*COUNTRY*.CSV') ]; then
-      log_message "The ip location dump file not found for $ipType."
-      updateAuditEntry "The ip location dump file not found for $ipType.." $executionStartTime $moduleName $featureName
+    if [ $(wc -c < $databaseZip) -lt $fileSize ]; then
+      log_message "The file downloaded was incomplete."
+      updateAuditEntry "The file downloading was incomplete. for $ipType" $executionStartTime $moduleName $featureName
       generateAlertUsingUrl "alert2145" $ipType '' $alertUrl
       exit 0
     fi
-    downloadedFileName="$(find . -name '*COUNTRY*.CSV')"
+    cd $inputFilePath
+    unzip -q -o $databaseZip
+    echo
+    if [ -z "$(find . -name "*$ipFileName*")" ]; then
+      log_message "The ip location dump file not found for $ipType."
+      updateAuditEntry "The ip location dump file not found for $ipType.." $executionStartTime $moduleName $featureName
+      generateAlertUsingUrl "alert2146" $ipType '' $alertUrl
+      exit 0
+    fi
+    downloadedFileName="$(find . -name "*$ipFileName*")"
+    log_message "Downloaded file is $downloadedFileName"
     dateFormat=$(date +%Y%m%d)
     fileName="ip_location_country_$ipType_$dateFormat.csv"
     fullFileName=$inputFilePath"/"$fileName
-
-  mv $downloadedFileName $fullFileName
-
+    mv $downloadedFileName $fullFileName
     totalRecords=$(wc -l <"$fullFileName")
     log_message "Total records in new file is $totalRecords"
     takeDiff=1
@@ -218,7 +217,7 @@ EOFMYSQL
         diffOutputAddition=$(diff -B --changed-group-format='%>' --unchanged-group-format='' "$fullProcessedFileName" "$sortedTempFile")
         #echo "$headers" > "$output_file"
         echo "$diffOutputDeletion" > "$outputFileDeletion"
-        echo "$diffOutputDeletion" >  "$outputFileAddition"
+        echo "$diffOutputAddition" >  "$outputFileAddition"
         diffEndTime=$(date +%s%3N)  # Get end time in milliseconds
         execution_time=$((diffEndTime - diffStartTime))
         log_message "Diff file creation execution time: $execution_time ms"
@@ -250,7 +249,7 @@ EOFMYSQL
     fi
     log_message "Starting java code $javaFeatureName"
     cd $javaProcessPath
-    java -jar iplocationprocessor-3.2.3.jar --spring.config.location=./application_ipv6.properties,$commonConfiguration > /u02/eirsdata/ipLocation/logs.txt
+    java -Dlog4j.configurationFile=file:$javaProcessLogFile -jar ipLocationProcessor.jar --spring.config.location=$javaProcessPropertyFile,$commonConfiguration 1>/dev/null 2>/dev/null
     javaFeature="$javaFeatureName"_"$ipType"
     log_message $javaFeature
     fileProcessStatusCode=$(mysql -h$dbIp -P$dbPort $auddbName -u$dbUsername -p${dbPassword} -se "select status_code from modules_audit_trail where created_on LIKE '%$(date +%F)%' and feature_name='$javaFeature' and module_name='$moduleName'  order by id desc limit 1");
@@ -263,13 +262,17 @@ EOFMYSQL
         mv 	${sortedTempFile} ${processedFilePath}/${fileName}
         log_message "Remove the $fullFileName"
         rm $fullFileName
-        log_message "ReMove the remaining files from ${inputFilePath}}"
-        rm $inputFilePath/*
-#        log_message "Moved file ${sortedTempFile} to ${processedFilePath}/${fileName}."
         mv $outputFileDeletion $deltaFileProcessedPath
         log_message "Moved file ${outputFileDeletion} to $deltaFileProcessedPath."
         mv $outputFileAddition $deltaFileProcessedPath
         log_message "Moved file $outputFileAddition to $deltaFileProcessedPath."
+	log_message "ReMove the remaining files from ${inputFilePath}}"
+        rm $inputFilePath/*
+#        log_message "Moved file ${sortedTempFile} to ${processedFilePath}/${fileName}."
+        #mv $outputFileDeletion $deltaFileProcessedPath
+        #log_message "Moved file ${outputFileDeletion} to $deltaFileProcessedPath."
+        #mv $outputFileAddition $deltaFileProcessedPath
+        #log_message "Moved file $outputFileAddition to $deltaFileProcessedPath."
         cd $fileScriptProcessPath
      else
         log_message "The status of processor execution is not equal to 200."
@@ -288,13 +291,14 @@ EOFMYSQL
   secondDivision=1000
   finalExecutionTime=`echo "$ExecutionTime * $secondDivision" | bc`
 
-  log_message $lastProcessedDateTag
+  log_message "Last processed date tag $lastProcessedDateTag has value $lastProcessedDate"
   mysql -h$dbIp -P$dbPort -u$dbUsername -p${dbPassword} $appdbName << EOFMYSQL
-    update sys_param set value='$dateFormat' where tag='$lastProcessedDateTag'
+    update sys_param set value='$dateFormat' where tag='$lastProcessedDateTag';
 EOFMYSQL
+log_message "Last processed date tag $lastProcessedDateTag has updated value $dateFormat"
   mysql -h$dbIp -P$dbPort -u$dbUsername -p${dbPassword} $auddbName << EOFMYSQL
       update modules_audit_trail set status_code=200, status='SUCCESS', info='$fileName', execution_time="$finalExecutionTime", count='$totalRecords' where feature_name='$featureName' and module_name='$moduleName' order by id desc limit 1;
 EOFMYSQL
 
-    log_message "IP Location process completed successfully."
+    log_message "IP Location process for ip-type $ipType is completed successfully."
     exit 0;

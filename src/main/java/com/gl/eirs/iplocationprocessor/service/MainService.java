@@ -45,7 +45,8 @@ public class MainService {
         SimpleDateFormat sdf = new SimpleDateFormat(dateFormat);
         String addFileName= "ip_location_country_add_"+ipType+"_diff_"+sdf.format(date).trim()+".csv";
         String delFileName= "ip_location_country_del_"+ipType+"_diff_"+sdf.format(date).trim()+".csv";
-
+        String addErrorFileName = "ip_location_country_add_"+ipType+"_error_"+sdf.format(date).trim()+".csv";
+        String delErrorFilename = "ip_location_country_del_"+ipType+"_error_"+sdf.format(date).trim()+".csv";
         FileDto addFileDto = new FileDto(addFileName, filePath);
         FileDto delFileDto = new FileDto(delFileName, filePath);
 
@@ -59,8 +60,9 @@ public class MainService {
 
             // create modules_audit_trail entry for this file.
             try {
-                boolean delFileResponse = fileServiceIpV4.processDelFile(delFileDto);
-                boolean addFileResponse = fileServiceIpV4.processAddFile(addFileDto);
+
+                boolean delFileResponse = fileServiceIpV4.processDelFile(delFileDto, delErrorFilename);
+                boolean addFileResponse = fileServiceIpV4.processAddFile(addFileDto, addErrorFileName);
             } catch (Exception ex) {
                 logger.error("The file processing failed for ipv4 diff file");
                 logger.info("Summary for add file {} is {}", addFileDto.getFileName(), addFileDto);
@@ -80,8 +82,9 @@ public class MainService {
 
 
             try {
-                boolean delFileResponse = fileServiceIpV6.processDelFile(delFileDto);
-                boolean addFileResponse = fileServiceIpV6.processAddFile(addFileDto);
+
+                boolean delFileResponse = fileServiceIpV6.processDelFile(delFileDto, delErrorFilename);
+                boolean addFileResponse = fileServiceIpV6.processAddFile(addFileDto, addErrorFileName);
             } catch (Exception ex) {
                 logger.error("The file processing failed for ipv6 diff file");
                 logger.info("Summary for add file {} is {}", addFileDto.getFileName(), addFileDto);
