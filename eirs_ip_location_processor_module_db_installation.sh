@@ -83,7 +83,7 @@ CREATE TABLE if not exists cfg_feature_alert (
   PRIMARY KEY (id)
 );
 
-insert into sys_param (description, tag, value, feature_name) SELECT 'The URL used to download IP location dump.', 'ipLocationDumpFileURL', 'https://www.ip2location.com/download?token=<token>\&file=<code>', 'Ip Location Processor' FROM dual WHERE NOT EXISTS ( SELECT * FROM sys_param WHERE tag = 'ipLocationDumpFileURL');
+insert into sys_param (description, tag, value, feature_name) SELECT 'The URL used to download IP location dump.', 'ipLocationDumpFileURL', 'https://www.ip2location.com/download?token=<token>\\&file=<code>', 'Ip Location Processor' FROM dual WHERE NOT EXISTS ( SELECT * FROM sys_param WHERE tag = 'ipLocationDumpFileURL');
 insert into sys_param (description, tag, value, feature_name) SELECT 'The code used to download ipv4 ip location dump.', 'ipLocationCodeipv4', 'DB1', 'Ip Location Processor' FROM dual WHERE NOT EXISTS ( SELECT * FROM sys_param WHERE tag = 'ipLocationCodeipv4');
 insert into sys_param (description, tag, value, feature_name) SELECT 'The code used to download ipv6 ip location dump', 'ipLocationCodeipv6', 'DB1IPV6', 'Ip Location Processor' FROM dual WHERE NOT EXISTS ( SELECT * FROM sys_param WHERE tag = 'ipLocationCodeipv6');
 insert into sys_param (description, tag, value, feature_name) SELECT 'The tag is used to store the last processed date for ip location processor for ip-type ipv6.', 'last_process_date_ip_location_ipv6', '', 'Ip Location Processor' FROM dual WHERE NOT EXISTS ( SELECT * FROM sys_param WHERE tag = 'last_process_date_ip_location_ipv6');
