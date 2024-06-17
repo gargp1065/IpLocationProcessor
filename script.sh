@@ -30,30 +30,16 @@
     alertProcess=$3
     alertUrl=$4
     curlOutput=$(curl --header "Content-Type: application/json"   --request POST   --data '{"alertId":"'$alertId'",
-    "alertMessage":"'"$alertMessage"'", "userId": "0", "alertProcess": "'"$alertProcess"'"}' "$alertUrl")
+    "alertMessage":"'"$alertMessage"'", "userId": "0", "alertProcess": "'"$alertProcess"'", "serverName": "'"$serverName"'",  "featureName": "Ip Location"}' "$alertUrl")
     echo $curlOutput
   }
-
-  function checkFileUploadComplete() {
-      fullFileName=$1
-      initialFileSize=0
-      currentFileSize=$(wc -c <"fullFileName")
-      while [ $currentFileSize -ne $initialFileSize ]
-      do
-        log_message "File $fullFileName is still uploading. Will check again in next 5 seconds."
-        initialFileSize=$currentFileSize
-        sleep 5
-      done
-      log_message "File "$fullFileName" uploading completed. Now will process the file for further steps."
-      return 1;
-    }
 
   function updateAuditEntry() {
       errMsg=$1
       executionStartTime=$2
       moduleName=$3
       featureName=$4
-      log_message $errMsg $executionStartTime $moduleName $featureName
+      log_message "$errMsg" "$executionStartTime" "$moduleName" "$featureName"
     #  echo $executionStartTime
       executionFinishTime=$(date +%s.%N);
       executionTime=$(echo "$executionFinishTime - $executionStartTime" | bc)
@@ -197,7 +183,16 @@ EOFMYSQL
     log_message "The last processed date for $ipType is $lastProcessedDate"
     lastProcessedFileName="ip_location_country_$iptype_$lastProcessedDate.csv"
     # check if lastProcessedDate exists or not. If not exists this is the first time process is running
+    fullProcessedFileName=$processedFilePath"/"$lastProcessedFileName
+    log_message "The previous process file is $fullProcessedFileName"
+    if [[ ! -z "$lastProcessedDate"  && ! -f "$fullProcessedFileName" ]];
+      then
+        log_message "The previous processed file does not exists on the server."
+        updateAuditEntry "The previous processed file $lastProcessedFileName not found for $ipType." "$executionStartTime" "$moduleName" "$featureName"
+        generateAlertUsingUrl "alert2148" "$ipType" "$lastProcessedFileName" "$alertUrl"
+        exit 1
 
+    fi
 
     ipLocationDumpFileUrl=$(mysql -h$dbIp -P$dbPort $appdbName -u$dbUsername -p${dbPassword} -se "select value from sys_param where tag='ipLocationDumpFileURL'")
     ipLocationUrlKey=$(mysql -h$dbIp -P$dbPort $appdbName -u$dbUsername -p${dbPassword} -se "select value from sys_param where tag='ipLocationURLKey'")
@@ -223,7 +218,7 @@ EOFMYSQL
 #
     if [ ! -f $databaseZip ]; then
       log_message "The file downloading failed for $ipType"
-      updateAuditEntry "The file downloading failed for $ipType" "$executionStartTime" "$moduleName" "$featureName"
+      updateAuditEntry "The file downloading fa iled for $ipType" "$executionStartTime" "$moduleName" "$featureName"
       generateAlertUsingUrl "alert2144" $ipType '' $alertUrl
       exit 0
     fi
@@ -257,7 +252,7 @@ EOFMYSQL
         log_message "The last processed date not exists. This is the first time processing. Taking current file as first dump to process."
         takeDiff=0
     fi
-    cd /u01/eirsapp/ipLocationProcessor/script/
+
     sortedTempFile="$inputFilePath/sortedFile.csv"
     log_message "Sorting the ip country file for creating diff files."
     sorted=$(sort "$fullFileName" > "$sortedTempFile")
@@ -270,7 +265,7 @@ EOFMYSQL
 
     lastProcessedFileName="ip_location_country_$iptype_$lastProcessedDate.csv"
     log_message "Previous processed file name $lastProcessedFileName"
-    fullProcessedFileName=$processedFilePath"/"$lastProcessedFileName
+
     if [ -f "$fullProcessedFileName" ];
       then
         # previous file exists take diff
@@ -285,10 +280,16 @@ EOFMYSQL
         diffEndTime=$(date +%s%3N)  # Get end time in milliseconds
         execution_time=$((diffEndTime - diffStartTime))
         log_message "Diff file creation execution time: $execution_time ms"
-
+    fi
+    if [ "$takeDiff" -eq "0" ];
+      then
+        log_message "This is the first time script is running."
+         cp "$sortedTempFile" "$outputFileAddition"
       else
-        log_message "Processed File is empty copying the sorted file to delta file."
-        cp "$sortedTempFile" "$outputFileAddition"
+        log_message "The previous processed file does not exists on the server."
+        updateAuditEntry "The previous processed file $lastProcessedFileName not found for $ipType." "$executionStartTime" "$moduleName" "$featureName"
+        generateAlertUsingUrl "alert2148" $ipType '' $alertUrl
+        exit 1
     fi
 
     if [ ! -s "$outputFileAddition" ] && [ ! -s "$outputFileDeletion" ];
@@ -301,13 +302,13 @@ EOFMYSQL
         mv 	${sortedTempFile} ${processedFilePath}/${fileName}
         log_message "Remove the $fullFileName"
         rm $fullFileName
-        log_message "Remove the remaining files from ${inputFilePath}}"
-        rm $inputFilePath/*
 #        log_message "Moved file ${sortedTempFile} to ${processedFilePath}/${fileName}."
         mv $outputFileDeletion $deltaFileProcessedPath
         log_message "Moved file ${outputFileDeletion} to $deltaFileProcessedPath."
         mv $outputFileAddition $deltaFileProcessedPath
         log_message "Moved file $outputFileAddition to $deltaFileProcessedPath."
+        log_message "Remove the remaining files from ${inputFilePath}}"
+        rm $inputFilePath/*
         exit 0
     # now file is downloaded successfully. Need to check if previous processed file exists or not. If not
     fi

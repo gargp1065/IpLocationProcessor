@@ -96,7 +96,7 @@ insert into cfg_feature_alert (alert_id, description, feature) values ('alert214
 insert into cfg_feature_alert (alert_id, description, feature) values ('alert2145', 'The file downloading was incomplete for <e>.', 'Ip Location Processor');
 insert into cfg_feature_alert (alert_id, description, feature) values ('alert2146', 'The dump file is not found for <e>.', 'Ip Location Processor');
 insert into cfg_feature_alert (alert_id, description, feature) values ('alert2147', 'The java process did not complete successfully for file <e> for <process_name>.', 'Ip Location Processor');
-
+insert into cfg_feature_alert (alert_id, description, feature) values ('alert2148', 'The previous processed file <process_name> does not exists on the server for <e>.', 'Ip Location Processor');
 EOFMYSQL`
 
 echo "creating aud database."
